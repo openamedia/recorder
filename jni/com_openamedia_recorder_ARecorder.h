@@ -17,11 +17,43 @@ JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetOutputFil
 	
 /*
  * Class:     com_openamedia_recorder_ARecorder
- * Method:    nativeSetSurface
+ * Method:    nativeSetPrevew
  * Signature: (Landroid/view/Surface;)V
  */
 JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetPreview
   (JNIEnv *, jobject, jobject);
+
+/*
+ * Class:     com_openamedia_recorder_ARecorder
+ * Method:    nativeSetChannels
+ * Signature: (Landroid/view/Surface;)V
+ */
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetChannels
+  (JNIEnv *, jobject, jint);
+
+	/*
+ * Class:     com_openamedia_recorder_ARecorder
+ * Method:    nativeSetSampleRate
+ * Signature: (Landroid/view/Surface;)V
+ */
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetSampleRate
+  (JNIEnv *, jobject, jint);
+
+	/*
+ * Class:     com_openamedia_recorder_ARecorder
+ * Method:    nativeSetVideoSize
+ * Signature: (Landroid/view/Surface;)V
+ */
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetVideoSize
+  (JNIEnv *, jobject, jint, jint);
+
+	/*
+ * Class:     com_openamedia_recorder_ARecorder
+ * Method:    nativeSetColorFormat
+ * Signature: (Landroid/view/Surface;)V
+ */
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetColorFormat
+  (JNIEnv *, jobject, jstring);
 
 /*
  * Class:     com_openamedia_recorder_ARecorder
@@ -46,6 +78,15 @@ JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeStop
  */
 JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeRelease
   (JNIEnv *, jobject);
+
+/*
+ * Class:     com_openamedia_recorder_ARecorder
+ * Method:    nativeWriteVideo
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeWriteVideo
+  (JNIEnv *, jobject, jbyteArray, jint);
+
 
 /*
  * Class:     com_openamedia_recorder_ARecorder

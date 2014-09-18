@@ -82,6 +82,37 @@ namespace openamedia {
 		return OK;
 	}
 
+	status_t MediaBufferGroup::acquire_buffer_with_timeout(MediaBuffer **out, int ms) {
+		Mutex::Autolock autoLock(mLock);
+
+		bool waited = false;
+		for (;;) {
+			if(mDone)
+				return UNKNOWN_ERROR;
+			
+			for (MediaBuffer *buffer = mFirstBuffer;
+				 buffer != NULL; buffer = buffer->nextBuffer()) {
+				if (buffer->refcount() == 0) {
+					buffer->add_ref();
+					buffer->reset();
+
+					*out = buffer;
+					goto exit;
+				}
+			}
+
+			if(waited)
+				return TIMED_OUT;
+
+			// All buffers are in use. Block until one of them is returned to us.
+			mCondition.waitRelative(mLock, ms * 1000000);
+			waited = true;
+		}
+
+	exit:
+		return OK;
+	}	
+
 	void MediaBufferGroup::stop_acquire(){
 		Mutex::Autolock autoLock(mLock);
 		mDone = true;

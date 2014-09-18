@@ -54,12 +54,12 @@ namespace openamedia {
 
 		if(mDone)
 			return false;
-		
+
 		MediaBuffer* buf = *mBusyList.begin();
 		*buffer = buf;
 		
 		mBusyList.erase(mBusyList.begin());
-		
+
 		return true;
 	}
 		
@@ -151,6 +151,14 @@ namespace openamedia {
 		while(!mThreadExited){
 			mCond.waitRelative(mLock, 40 * 1000000);
 		}
+
+		if(mVideoSource != NULL){
+			mVideoSource->stop();
+		}
+
+		if(mAudioSource != NULL){
+			mAudioSource->stop();
+		}
 		
 		mStarted = false;
 		
@@ -214,7 +222,7 @@ namespace openamedia {
 				mCond.waitRelative(mLock, 20 * 1000000);
 				continue;//wait shall be placed before every 'continue' to previent the too much frequent token of mLock. which will block the other mLock(in stop()).
 			}
-
+			
 			int mediaType;
 			if(!srcbuf->meta_data()->findInt32(kKeyMediaType, &mediaType)){
 				ALOGE("fail to find media type info from the buffer %p!!", srcbuf->data());
@@ -232,13 +240,14 @@ namespace openamedia {
 				srcbuf->release();
 				break;
 			}
-			
+
 			sub->write(srcbuf);//TODO: blocking call.
 
 			srcbuf->release();
 		}
 
 		{
+			ALOGW("Prefetcher thread exited!!");
 			Mutex::Autolock ao(mLock);
 			mThreadExited = true;
 			mCond.signal();

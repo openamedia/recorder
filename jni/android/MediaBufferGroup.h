@@ -38,6 +38,8 @@ namespace openamedia {
 		// the returned buffer will have a reference count of 1.
 		status_t acquire_buffer(MediaBuffer **buffer);
 
+		status_t acquire_buffer_with_timeout(MediaBuffer **out, int ms);
+
 		void stop_acquire();
 
 	protected:

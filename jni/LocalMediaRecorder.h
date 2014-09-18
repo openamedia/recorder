@@ -20,6 +20,10 @@ namespace openamedia {
 			MSG_SET_LISTENER,
 			MSG_SET_PARAMETER,
 			MSG_SET_PREVIEW,
+			MSG_SET_CHANNELS,
+			MSG_SET_SAMPLE_RATE,
+			MSG_SET_VIDEO_SIZE,
+			MSG_SET_COLOR_FORMAT,
 			MSG_START,
 			MSG_STOP,
 		};
@@ -28,8 +32,14 @@ namespace openamedia {
 		virtual void setListener(MediaRecorderListener* listener);
 		virtual void setParameter(const char* param);
 		virtual void setPreview(ANativeWindow* window);
+		virtual void setChannels(int channels);
+		virtual void setSampleRate(int sampleRate);
+		virtual void setVideoSize(int width, int height);
+		virtual void setColorFormat(OMX_COLOR_FORMATTYPE fmt);
+
 		virtual void start();
 		virtual void stop();
+		virtual void writeVideo(void* data, int dataSize);
 
 	protected:
 		virtual ~LocalMediaRecorder();
@@ -45,6 +55,12 @@ namespace openamedia {
 		MuxEngine* mMuxEngine;
 
 		MetaData* mMetaData;
+
+		int mChannels;
+		int mSampleRate;
+		int mWidth;
+		int mHeight;
+		OMX_COLOR_FORMATTYPE mColorFormat;
 
 		static void HandleMessage(Message* msg, void* context);
 		void handleMessage(Message* msg);

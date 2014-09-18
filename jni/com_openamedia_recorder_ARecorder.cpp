@@ -30,6 +30,7 @@ public:
 	
 private:
 	JNIEnv* mEnv;
+	JNIEnv* mOrgEnv;
 	jclass mClass;
 	jobject mObject;
 
@@ -52,13 +53,13 @@ JNIMediaRecorderListener::JNIMediaRecorderListener(JNIEnv *env, jobject thiz, jo
     // The reference is only used as a proxy for callbacks.
 	mObject = env->NewGlobalRef(weak_this);
 
-	mEnv = env;
+	mOrgEnv = mEnv = env;
 }
 
 JNIMediaRecorderListener::~JNIMediaRecorderListener(){
 	// remove global references
-    mEnv->DeleteGlobalRef(mObject);
-    mEnv->DeleteGlobalRef(mClass);
+    mOrgEnv->DeleteGlobalRef(mObject);
+    mOrgEnv->DeleteGlobalRef(mClass);
 }
 
 //call back to java
@@ -68,6 +69,7 @@ void JNIMediaRecorderListener::notify(int msg, int ext1, int ext2, const void* d
 		array = mEnv->NewByteArray(data_size);
 		if(!array){
 			ALOGE("fail to new byteArray for notify!!");
+			return;
 		}else{
 			jbyte* bytes = mEnv->GetByteArrayElements(array, NULL);
 			if (bytes != NULL) {
@@ -120,9 +122,7 @@ static void setMediaRecorder(JNIEnv* env, jobject thiz, const MediaRecorder* rec
 		old = NULL;
 	}
 
-	if(recorder){
-		env->SetIntField(thiz, JCLASS_FIELD_ID_NATIVE_CONTEXT, (int)recorder);
-	}
+	env->SetIntField(thiz, JCLASS_FIELD_ID_NATIVE_CONTEXT, (int)recorder);
 }
 
 JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetup(JNIEnv *env, jobject thiz, jobject weak_this){
@@ -202,6 +202,59 @@ JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetPreview(J
 	mr->setPreview(window);
 }
 
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetChannels(JNIEnv *env, jobject thiz, jint channels){
+	MediaRecorder* mr = getMediaRecorder(env, thiz);
+	if(mr == NULL){
+		ALOGE("no Recorder found for setChannels");
+		return;
+	}
+
+	mr->setChannels(channels);
+}
+
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetSampleRate(JNIEnv *env, jobject thiz, jint sampleRate){
+	MediaRecorder* mr = getMediaRecorder(env, thiz);
+	if(mr == NULL){
+		ALOGE("no Recorder found for setSampleRate");
+		return;
+	}
+
+	mr->setSampleRate(sampleRate);
+}
+
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetVideoSize(JNIEnv *env, jobject thiz, jint width, jint height){
+	MediaRecorder* mr = getMediaRecorder(env, thiz);
+	if(mr == NULL){
+		ALOGE("no Recorder found for setVideoSize");
+		return;
+	}
+
+	mr->setVideoSize(width, height);	
+}
+
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeSetColorFormat(JNIEnv *env, jobject thiz, jstring fmt){
+	MediaRecorder* mr = getMediaRecorder(env, thiz);
+	if(mr == NULL){
+		ALOGE("no Recorder found for setColorFormat");
+		return;
+	}
+
+	const char *tmp = env->GetStringUTFChars(fmt, NULL);
+    if (tmp == NULL) {
+		ALOGE("fail to get utfchars from color fmt jstr by Out of memory");
+        return;
+    }
+
+	if(!strcmp(tmp,"nv21")){
+		mr->setColorFormat(OMX_COLOR_FormatYUV420SemiPlanar);
+	}else{
+		ALOGE("no support of colorfmt %s for now", tmp);
+	}
+	
+	env->ReleaseStringUTFChars(fmt, tmp);
+	tmp = NULL;
+}
+
 JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeStart(JNIEnv *env, jobject thiz){
 	MediaRecorder* mr = getMediaRecorder(env, thiz);
 	if(mr == NULL){
@@ -225,6 +278,26 @@ JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeStop(JNIEnv 
 JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeRelease(JNIEnv *env, jobject thiz){	
 	setMediaRecorder(env, thiz, NULL);
 }
+
+JNIEXPORT void JNICALL Java_com_openamedia_recorder_ARecorder_nativeWriteVideo(JNIEnv *env, jobject thiz, jbyteArray jb, jint len){
+	MediaRecorder* mr = getMediaRecorder(env, thiz);
+	if(mr == NULL){
+		ALOGE("no Recorder found for setSurface");
+		return;
+	}
+
+	jbyte* bytes = env->GetByteArrayElements(jb, NULL);
+	unsigned char* pBuffer = (unsigned char*)bytes;
+	if(pBuffer == NULL){
+		ALOGE("fail to get buffer pointer from jbyteArray!!");
+		return;
+	}
+
+	mr->writeVideo(pBuffer, len);
+	
+	env->ReleaseByteArrayElements(jb, bytes, 0);
+}
+
 
 jint JNI_OnLoad(JavaVM* vm, void* reserved){
 	g_jvm = vm;

@@ -5,6 +5,8 @@
 #include "android/Errors.h"
 #include "android/MediaBuffer.h"
 
+#include "openmax/OMX_IVCommon.h"
+
 #include "Common.h"
 
 extern "C"{
@@ -26,6 +28,8 @@ namespace openamedia {
 		~FFMPEGer();
 
 		void setOutputFile(const char* path);
+		void setVideoSize(int width, int height);
+		void setVideoColorFormat(OMX_COLOR_FORMATTYPE fmt);
 		
 		bool init(MetaData* meta);
 		
@@ -65,6 +69,11 @@ namespace openamedia {
 		OutputStream audio_st;
 
 		char mOutputFile[MAX_STRING_PATH_LEN];
+
+		int mWidth;
+		int mHeight;
+		OMX_COLOR_FORMATTYPE mColor;
+		AVPixelFormat mPixFmt;
 
 		bool deInit();
 		void reset();

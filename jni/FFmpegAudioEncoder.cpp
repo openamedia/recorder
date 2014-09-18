@@ -156,7 +156,7 @@ namespace openamedia {
 		if(!mInited)
 			reset();
 
-		ALOGE("FFmpegAudioEncoder::init out buffersize:%d, c->channels:%d, layout:%d, c->sample_fmt:%d, c->frame_size:%d, c->sample_rate:%d", buffer_size, c->channels, c->channel_layout, c->sample_fmt, c->frame_size, c->sample_rate);
+		//ALOGE("FFmpegAudioEncoder::init out buffersize:%d, c->channels:%d, layout:%d, c->sample_fmt:%d, c->frame_size:%d, c->sample_rate:%d", buffer_size, c->channels, c->channel_layout, c->sample_fmt, c->frame_size, c->sample_rate);
 
 		return mInited;
 	}
@@ -303,7 +303,7 @@ namespace openamedia {
 					mOutCapacity = mOutSize + pkt.size;
 				}
 				
-				memcpy(mOut + mOutSize, pkt.data, pkt.size);
+				memcpy((unsigned char*)mOut + mOutSize, pkt.data, pkt.size);
 				mOutSize += pkt.size;
 				av_free_packet(&pkt);
 			}

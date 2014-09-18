@@ -43,6 +43,8 @@ namespace openamedia {
 		FFMPEGer* mFFMPEG;
 		FFmpegAudioEncoder* mAudioEncoder;
 
+		bool mNextReadAudio;
+
 		char mOutputFile[MAX_STRING_PATH_LEN];
 
 		bool deInit();

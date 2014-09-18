@@ -3,10 +3,12 @@
 #define LOG_TAG "FFMPEGer"
 #include "android/Log.h"
 
+#include "openmax/OMX_IVCommon.h"
+
 namespace openamedia {
 
 #define STREAM_DURATION   10.0
-#define STREAM_FRAME_RATE 25 /* 25 images/s */
+#define STREAM_FRAME_RATE 15 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS SWS_BICUBIC
 	
@@ -30,6 +32,21 @@ namespace openamedia {
 	void FFMPEGer::setOutputFile(const char* path){
 		strncpy(mOutputFile, path, sizeof(mOutputFile));
 	}
+
+	void FFMPEGer::setVideoSize(int width, int height){
+		mWidth = width;
+		mHeight = height;
+	}
+	
+	void FFMPEGer::setVideoColorFormat(OMX_COLOR_FORMATTYPE fmt){
+		mColor = fmt;
+		if(mColor == OMX_COLOR_FormatYUV420SemiPlanar){
+			mPixFmt = AV_PIX_FMT_NV21;
+		}else if(mColor == OMX_COLOR_FormatYUV420Planar){
+			mPixFmt = AV_PIX_FMT_YUV420P;
+		}
+
+	}
 	
 	bool FFMPEGer::init(MetaData* meta){
 		if(mInited)
@@ -52,8 +69,8 @@ namespace openamedia {
 			/* Add the audio and video streams using the default format codecs
 			 * and initialize the codecs. */
 			if (fmt->video_codec != AV_CODEC_ID_NONE) {
-				//add_stream(&video_st, fmt_ctx, &video_codec, fmt->video_codec);
-				//have_video = true;
+				add_stream(&video_st, fmt_ctx, &video_codec, fmt->video_codec);
+				have_video = true;
 			}
 			if (fmt->audio_codec != AV_CODEC_ID_NONE) {
 				add_stream(&audio_st, fmt_ctx, &audio_codec, fmt->audio_codec);
@@ -72,7 +89,7 @@ namespace openamedia {
 			
 			if (have_audio)
 				open_audio(audio_codec, &audio_st, opt);
-
+			
 			/* open the output file, if needed */
 			if (!(fmt->flags & AVFMT_NOFILE)) {
 				ret = avio_open(&fmt_ctx->pb, mOutputFile, AVIO_FLAG_WRITE);
@@ -83,7 +100,7 @@ namespace openamedia {
 			}
 
 			/* Write the stream header, if any. */
-			ret = avformat_write_header(fmt_ctx, &opt);
+			ret = avformat_write_header(fmt_ctx, NULL);
 			if (ret < 0) {
 				ALOGE("Error occurred when opening output file: %s", av_err2str(ret));
 				break;
@@ -113,7 +130,7 @@ namespace openamedia {
 			return false;
 		}
 
-		ALOGE("success to find encoder for '%s'",
+		ALOGV("success to find encoder for '%s'",
 			  avcodec_get_name(codec_id));
 		
 		ost->st = avformat_new_stream(oc, *codec);
@@ -151,10 +168,14 @@ namespace openamedia {
 			break;
 		case AVMEDIA_TYPE_VIDEO:
 			c->codec_id = codec_id;
+			if(codec_id == AV_CODEC_ID_H264){
+				c->profile = FF_PROFILE_H264_BASELINE;
+			}
+			
 			c->bit_rate = 400000;
 			/* Resolution must be a multiple of two. */
-			c->width    = 352;
-			c->height   = 288;
+			c->width    = mWidth;
+			c->height   = mHeight;
 			/* timebase: This is the fundamental unit of time (in seconds) in terms
 			 * of which frame timestamps are represented. For fixed-fps content,
 			 * timebase should be 1/framerate and timestamp increments should be
@@ -162,17 +183,7 @@ namespace openamedia {
 			ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
 			c->time_base       = ost->st->time_base;
 			c->gop_size      = 12; /* emit one intra frame every twelve frames at most */
-			c->pix_fmt       = STREAM_PIX_FMT;
-			if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-				/* just for testing, we also add B frames */
-				c->max_b_frames = 2;
-			}
-			if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-				/* Needed to avoid using macroblocks in which some coeffs overflow.
-				 * This does not happen with normal video, it just happens here as
-				 * the motion of the chroma plane does not match the luma plane. */
-				c->mb_decision = 2;
-			}
+			c->pix_fmt       = STREAM_PIX_FMT;//input fmt for the encoder.
 			break;
 		default:
 			break;
@@ -180,8 +191,6 @@ namespace openamedia {
 		/* Some formats want stream headers to be separate. */
 		if (oc->oformat->flags & AVFMT_GLOBALHEADER)
 			c->flags |= CODEC_FLAG_GLOBAL_HEADER;
-
-		ALOGV("add_stream out");
 
 		return true;
 	}
@@ -206,7 +215,7 @@ namespace openamedia {
 			nb_samples = 10000;
 		else
 			nb_samples = c->frame_size;
-		
+				
 		ost->frame = alloc_audio_frame(c->sample_fmt, c->channel_layout,
 									   c->sample_rate, nb_samples);
 		ost->tmp_frame = alloc_audio_frame(AV_SAMPLE_FMT_S16, c->channel_layout,
@@ -266,12 +275,12 @@ namespace openamedia {
 	bool FFMPEGer::open_video(AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg){
 		int ret;
 		AVCodecContext *c = ost->st->codec;
-		AVDictionary *opt = NULL;
-		av_dict_copy(&opt, opt_arg, 0);
-		/* open the codec */
+		//AVDictionary *opt = NULL;
+		//av_dict_copy(&opt, opt_arg, 0);
 
-		ret = avcodec_open2(c, codec, &opt);
-		av_dict_free(&opt);
+		/* open the codec */
+		ret = avcodec_open2(c, codec, NULL);
+		//av_dict_free(&opt);
 		if (ret < 0) {
 			ALOGE("Could not open video codec: %s", av_err2str(ret));
 			return false;
@@ -288,8 +297,9 @@ namespace openamedia {
 		 * picture is needed too. It is then converted to the required
 		 * output format. */
 		ost->tmp_frame = NULL;
-		if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-			ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
+		if (c->pix_fmt != mPixFmt) {
+			ALOGE("open_video alloc_picture for te");
+			ost->tmp_frame = alloc_picture(mPixFmt, c->width, c->height);
 			if (!ost->tmp_frame) {
 				ALOGE("Could not allocate temporary picture");
 				return false;
@@ -378,7 +388,7 @@ namespace openamedia {
 		}
 	}
 	
-	status_t FFMPEGer::encodeAudio(MediaBuffer* src, MediaBuffer* dst){		
+	status_t FFMPEGer::encodeAudio(MediaBuffer* src, MediaBuffer* dst){
 		AVCodecContext *c;
 		
 		AVFrame *frame = NULL;
@@ -387,10 +397,10 @@ namespace openamedia {
 		int dst_nb_samples;
 		OutputStream* ost = &audio_st;
 		
-		void* srcData = src->data() + src->range_offset();
+		unsigned char* srcData = (unsigned char*)src->data() + src->range_offset();
 		int copySize = getAudioEncodeBufferSize();
 
-		while(srcData < (src->data() + src->range_offset() + src->range_length())){
+		while(srcData < ((unsigned char*)src->data() + src->range_offset() + src->range_length())){
 			AVPacket pkt = { 0 }; // data and size must be 0;
 			av_init_packet(&pkt);
 			c = ost->st->codec;
@@ -399,6 +409,7 @@ namespace openamedia {
 			memcpy(frame->data[0], srcData, copySize);
 			srcData += copySize;
 			frame->pts = audio_st.next_pts;
+			
 			audio_st.next_pts += frame->nb_samples;
 
 			if (frame) {
@@ -436,17 +447,19 @@ namespace openamedia {
 				return UNKNOWN_ERROR;
 			}
 
+			pkt.pts = frame->pts;//
+			
 #if 0
-				static int count = 0;
-				char a[50] = {0};
-				sprintf(a, "/sdcard/pcm%d", count++);
-				FILE* f1 = fopen(a, "ab");
-				if(f1 != NULL){
-					size_t res = fwrite(pkt.data, 1, pkt.size, f1);
-					fclose(f1);
-					ALOGV("fwrite %d of %d to /sdcard/pcm!", res, pkt.size);
-				}else
-					ALOGE("can not fopen /sdcard/pcm!!");
+			static int count = 0;
+			char a[50] = {0};
+			sprintf(a, "/sdcard/pcm%d", count++);
+			FILE* f1 = fopen(a, "ab");
+			if(f1 != NULL){
+				size_t res = fwrite(pkt.data, 1, pkt.size, f1);
+				fclose(f1);
+				ALOGV("fwrite %d of %d to /sdcard/pcm!", res, pkt.size);
+			}else
+				ALOGE("can not fopen /sdcard/pcm!!");
 #endif
 			
 			
@@ -463,6 +476,7 @@ namespace openamedia {
 	int FFMPEGer::write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt) {
 		/* rescale output packet timestamp values from codec to stream timebase */
 		//av_packet_rescale_ts(pkt, *time_base, st->time_base);
+		
 		pkt->stream_index = st->index;
 		/* Write the compressed frame to the media file. */
 		//log_packet(fmt_ctx, pkt);
@@ -470,7 +484,83 @@ namespace openamedia {
 	}
 	
 	status_t FFMPEGer::encodeVideo(MediaBuffer* src, MediaBuffer* dst){
-		return UNKNOWN_ERROR;
+		int ret;
+		OutputStream* ost = &video_st;
+		AVCodecContext *c;
+		AVFrame *frame;
+		int got_packet = 0;
+		c = ost->st->codec;
+		
+		if(mPixFmt == AV_PIX_FMT_NV21){
+			memcpy(ost->tmp_frame->data[0], src->data(), c->width * c->height);
+			memcpy(ost->tmp_frame->data[1], (char*)src->data() + c->width * c->height, c->width * c->height / 2);
+		}else if(mPixFmt = AV_PIX_FMT_YUV420P){
+			memcpy(ost->frame->data[0], src->data(), c->width * c->height);
+			memcpy(ost->frame->data[1], (char*)src->data() + c->width * c->height, c->width * c->height / 4);
+			memcpy(ost->frame->data[2], (char*)src->data() + c->width * c->height * 5 / 4, c->width * c->height / 4);
+		}
+		
+		if (c->pix_fmt != mPixFmt) {
+			/* as we only generate a YUV420P picture, we must convert it
+			 * to the codec pixel format if needed */
+			if (!ost->sws_ctx) {
+				ost->sws_ctx = sws_getContext(c->width, c->height,
+											  mPixFmt,
+											  c->width, c->height,
+											  c->pix_fmt,
+											  SCALE_FLAGS, NULL, NULL, NULL);
+				if (!ost->sws_ctx) {
+					ALOGE("Could not initialize the conversion context");
+					return UNKNOWN_ERROR;
+				}
+			}
+			
+			sws_scale(ost->sws_ctx,
+					  (const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
+					  0, c->height, ost->frame->data, ost->frame->linesize);
+		}
+		
+		//ost->frame->pts = ost->next_pts++;
+		ost->frame->pts = av_rescale_q(ost->next_pts++, (AVRational){1, 15}, ost->st->time_base);
+		
+		frame = ost->frame;
+
+		if (fmt_ctx->oformat->flags & AVFMT_RAWPICTURE) {
+			/* a hack to avoid data copy with some raw video muxers */
+			AVPacket pkt = { 0 };
+			av_init_packet(&pkt);
+			
+			pkt.flags        |= AV_PKT_FLAG_KEY;
+			pkt.stream_index  = ost->st->index;
+			pkt.data          = (uint8_t *)frame;
+			pkt.size          = sizeof(AVPicture);
+			pkt.pts = pkt.dts = frame->pts;
+			//av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
+			ret = av_interleaved_write_frame(fmt_ctx, &pkt);
+		} else {
+			AVPacket pkt = { 0 };
+			av_init_packet(&pkt);
+			
+			/* encode the image */
+			ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+			if (ret < 0) {
+				ALOGE("Error encoding video frame: %s", av_err2str(ret));
+				return UNKNOWN_ERROR;
+			}
+			
+			if (got_packet) {
+				ret = write_frame(fmt_ctx, &c->time_base, ost->st, &pkt);
+			} else {
+				ret = 0;
+			}
+		}
+		
+		if (ret < 0) {
+			ALOGE("Error while writing video frame: %s", av_err2str(ret));
+			return UNKNOWN_ERROR;
+		}
+		
+		return OK;
 	}
 
 	status_t FFMPEGer::finish() {
@@ -479,7 +569,6 @@ namespace openamedia {
 		 * av_write_trailer() may try to use memory that was freed on
 		 * av_codec_close(). */
 		av_write_trailer(fmt_ctx);
-		ALOGE("FFMPEGer::finish");
 	}
 	
 	void FFMPEGer::mux(){

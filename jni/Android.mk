@@ -31,6 +31,12 @@ LOCAL_SRC_FILES := ffmpeg/lib/libswscale.a
 include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE    := static-x264
+LOCAL_SRC_FILES := ffmpeg/lib/libx264.a
+include $(PREBUILT_STATIC_LIBRARY)
+
+
+include $(CLEAR_VARS)
 
 LOCAL_MODULE    := arecorder-jni
 
@@ -54,6 +60,7 @@ LOCAL_SRC_FILES :=	com_openamedia_recorder_ARecorder.cpp \
 
 LOCAL_STATIC_LIBRARIES :=	static-avformat \
 							static-avcodec \
+							static-x264 \
 							static-faac \
 							static-swresample \
 							static-swscale \
@@ -66,8 +73,13 @@ LOCAL_C_INCLUDES :=	ffmpeg/include \
 LOCAL_LDLIBS    += 	-llog \
 					-landroid \
 					-lOpenSLES \
-					-lz
+					-lz \
 
-LOCAL_CFLAGS    += -UNDEBUG -Wno-multichar
+LOCAL_CFLAGS    += 	-Wno-multichar \
+					-D__cplusplus \
+					-D__STDC_CONSTANT_MACROS \
+					-D__STDC_FORMAT_MACROS \
+					-DFF_API_SWS_GETCONTEXT
+
 
 include $(BUILD_SHARED_LIBRARY)

@@ -4,6 +4,7 @@
 #include "Prefetcher.h"
 #include "io/OpenSLRecorder.h"
 #include "android/MetaData.h"
+#include "openmax/OMX_IVCommon.h"
 
 namespace openamedia {
 
@@ -15,7 +16,11 @@ namespace openamedia {
 		LMRAudioSource();
 		~LMRAudioSource();
 
-		bool init(int sampleRate, int channels, int bufSize);
+		void setSampleRate(int sampleRate);
+		void setChannels(int channels);
+		void setBufSize(int bufSize);
+
+		bool init();
 		
 		bool start();
 		bool stop();
@@ -34,6 +39,10 @@ namespace openamedia {
 		List<MediaBuffer*> mBusyList;
 		MediaBuffer* mSLBuffer;
 
+		int mSampleRate;
+		int mChannels;
+		int mBufSize;
+
 		bool deInit();
 		void reset();
 		
@@ -45,7 +54,41 @@ namespace openamedia {
 	};
 	
 	class LMRVideoSource {
+	public:
+		LMRVideoSource();
+		~LMRVideoSource();
+
+		void setRect(int width, int height);
+		void setColorFormat(OMX_COLOR_FORMATTYPE color);
 		
+		bool init();
+
+		bool start();
+		bool stop();
+		status_t read(MediaBuffer** buffer);
+		
+		status_t write(void* data, int dataSize);
+
+	private:
+		Mutex mLock;
+		Condition mCond;
+		bool mInited;
+		bool mStarted;
+		bool mDone;
+		MetaData* mMetaData;
+
+		int mWidth;
+		int mHeight;
+		OMX_COLOR_FORMATTYPE mColor;
+
+		MediaBufferGroup* mGroup;
+		List<MediaBuffer*> mBusyList;
+
+		bool deInit();
+		void reset();
+		
+		LMRVideoSource(const LMRVideoSource&);
+		LMRVideoSource& operator=(const LMRVideoSource&);
 	};
 
 	class LMRSource : public Prefetcher::Source {
@@ -59,6 +102,8 @@ namespace openamedia {
 		virtual status_t read(MediaBuffer** buffer);
 		virtual bool seek(int64_t timeMS);
 
+		status_t writeVideo(void* data, int dataSize);
+
 		MetaData* getMetaData();
 		
 	private:
@@ -67,6 +112,8 @@ namespace openamedia {
 		MetaData* mMetaData;
 		LMRAudioSource* mAudioSource;
 		LMRVideoSource* mVideoSource;
+
+		bool mNextReadAudio;
 
 		bool deInit();
 		void reset();

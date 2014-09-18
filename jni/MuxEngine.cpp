@@ -12,7 +12,8 @@ namespace openamedia {
 		 mThreadExited(false),
 		 mAudioSrc(NULL),
 		 mVideoSrc(NULL),
-		 mFFMPEG(NULL){
+		 mFFMPEG(NULL),
+		 mNextReadAudio(true){
 	}
 	
 	MuxEngine::~MuxEngine(){
@@ -38,19 +39,11 @@ namespace openamedia {
 		do{
 			mFFMPEG = new FFMPEGer;
 			mFFMPEG->setOutputFile(mOutputFile);
+			mFFMPEG->setVideoSize(320, 240);
+			mFFMPEG->setVideoColorFormat(OMX_COLOR_FormatYUV420SemiPlanar);
 			bool res = mFFMPEG->init(NULL);
 			if(!res)
 				break;
-
-			/*
-			mAudioEncoder = new FFmpegAudioEncoder;
-			mAudioEncoder->setSampleRate(44100);
-			mAudioEncoder->setChannels(2);
-			mAudioEncoder->setEncoder(CODEC_TYPE_AAC);
-			res = mAudioEncoder->init();
-			if(!res)
-				break;
-			*/
 
 			mInited = true;
 		}while(0);
@@ -77,13 +70,6 @@ namespace openamedia {
 			delete mFFMPEG;
 			mFFMPEG = NULL;
 		}
-
-		/*
-		if(mAudioEncoder != NULL){
-			delete mAudioEncoder;
-			mAudioEncoder = NULL;
-		}
-		*/
 	}
 
 	bool MuxEngine::start(){
@@ -102,7 +88,6 @@ namespace openamedia {
 	
 	bool MuxEngine::stop(){
 		Mutex::Autolock ao(mLock);
-		
 		if(!mStarted)
 			return true;
 
@@ -110,6 +95,8 @@ namespace openamedia {
 		while(!mThreadExited){
 			mCond.waitRelative(mLock, 40000000);
 		}
+
+		mFFMPEG->finish();
 
 		mStarted = false;
 
@@ -134,31 +121,40 @@ namespace openamedia {
 	void MuxEngine::threadEntry(){
 		for(;;){
 			Mutex::Autolock ao(mLock);
-
+			
 			if(mDone){
-				mFFMPEG->finish();
 				break;
 			}
-			
-			MediaBuffer* buffer;
-			mAudioSrc->read(&buffer);
 
-			/*
-			void* outv;
-			int outSize;
-			bool res  = mAudioEncoder->encode(buffer->data(), buffer->range_length(), &outv, &outSize);
-			if(!res){
-				ALOGE("mAudioEncoder->encode error!!");
-			}
-			*/
-			
+			MediaBuffer* buffer = NULL;
 			MediaBuffer* out;//TODO: mean nothing.
-			mFFMPEG->encodeAudio(buffer, out);
+			bool res;
+			
+			if(mNextReadAudio && mAudioSrc != NULL){
+				res = mAudioSrc->read(&buffer);
+				if(!res)
+					break;
+			
+				mFFMPEG->encodeAudio(buffer, out);
+
+				if(mVideoSrc != NULL)
+					mNextReadAudio = false;
+			}else if(!mNextReadAudio && mVideoSrc != NULL){
+				res = mVideoSrc->read(&buffer);
+				if(!res)
+					break;
+			
+				mFFMPEG->encodeVideo(buffer, out);
+
+				if(mAudioSrc != NULL)
+					mNextReadAudio = true;
+			}
 
 			buffer->release();
 		}
 
 		{
+			ALOGW("MuxEngine thread exited!!");
 			Mutex::Autolock ao(mLock);
 			mThreadExited = true;
 			mCond.signal();
